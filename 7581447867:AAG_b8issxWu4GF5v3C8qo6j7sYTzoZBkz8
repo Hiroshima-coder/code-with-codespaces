@@ -1,0 +1,43 @@
+ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filtersfrom telegram.ext import ContextTypes, CallbackQueryHandler
+from langdetect import detectimport deepl
+# Импортируем API ключи из отдельного файла для безопасности
+from keys import TELEGRAM_TOKEN, DEEPL_API_KEY
+# Инициализация переводчика DeepLtranslator = deepl.Translator(DEEPL_API_KEY)
+# Словарь поддерживаемых языков
+LANGUAGES = {    "RU": "Русский",
+    "EN": "Английский",    "DE": "Немецкий",
+    "FR": "Французский",    "ES": "Испанский",
+    "IT": "Итальянский",    "ZH": "Китайский",
+    "JA": "Японский"}
+# Словарь для хранения предпочтений пользователей (id пользователя -> код языка)
+user_preferences = {}
+# Создание клавиатуры для выбора языка
+def get_language_keyboard():    keyboard = []
+    row = []    # Размещаем по 2 кнопки в ряд
+    for i, (lang_code, lang_name) in enumerate(LANGUAGES.items()):        if i % 2 == 0 and i > 0:
+            keyboard.append(row)            row = []
+        row.append(InlineKeyboardButton(lang_name, callback_data=f"lang_{lang_code}"))
+    # Добавляем оставшиеся кнопки    if row:
+        keyboard.append(row)
+    return InlineKeyboardMarkup(keyboard)
+# Обработчик команды /start
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):    user = update.effective_user
+    await update.message.reply_html(        f" Привет, {user.mention_html()}!\n\n"
+        f" Я бот-переводчик с интеграцией DeepL.\n\n"        f" Для начала выберите язык, на который хотите переводить:",
+        reply_markup=get_language_keyboard()    )
+
+# Обработчик выбора языка из инлайн-клавиатурыasync def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query    await query.answer()  # Отправляем пустой ответ, чтобы убрать состояние загрузки с кнопки
+    # Получаем ID пользователя и выбранный язык
+    user_id = query.from_user.id    selected_lang = query.data.split("_")[1]
+    # Сохраняем предпочтение пользователя
+    user_preferences[user_id] = selected_lang
+    # Отправляем подтверждение выбора
+    language_name = LANGUAGES.get(selected_lang, selected_lang)    await query.edit_message_text(
+        f" Отлично! Теперь я буду переводить сообщения на {language_name}.\n\n"        f" Просто отправьте мне текст для перевода.\n"
+        f" Чтобы изменить язык, используйте команду /language"    )
+
+# Обработчик команды /language для смены языкаasync def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(        "Выберите язык, на который хотите переводить:",
+        reply_markup=get_language_keyboard()    )
